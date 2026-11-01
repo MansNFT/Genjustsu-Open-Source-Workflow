@@ -68,6 +68,53 @@ class RleTests(unittest.TestCase):
         self.assertEqual(counts_to_string(mask_counts(m)),enc['counts'].decode())
         self.assertTrue((rle_masks.decode_one({'size':list(m.shape),'counts':enc['counts']},*m.shape)==m).all())
 
+def pair_string(mask,order='C'):
+    """fal's observed format: 'start length' pairs, 1-indexed."""
+    f=mask.ravel(order=order).astype(np.int8)
+    bounds=np.concatenate([[0],np.flatnonzero(np.diff(f))+1,[f.size]])
+    out=[]
+    for a,b in zip(bounds[:-1],bounds[1:]):
+        if f[a]==1:out+= [int(a)+1,int(b-a)]
+    return ' '.join(map(str,out))
+
+class PairRleTests(unittest.TestCase):
+    def blob(self,h=40,w=16):
+        m=np.zeros((h,w),dtype=bool);m[5:30,3:10]=True;m[12:20,10:14]=True;return m
+    def test_row_major_pairs_roundtrip(self):
+        m=self.blob();self.assertTrue((rle_masks.decode_one(pair_string(m,'C'),*m.shape)==m).all())
+    def test_column_major_pairs_are_detected_from_spacing(self):
+        m=self.blob();self.assertTrue((rle_masks.decode_one(pair_string(m,'F'),*m.shape)==m).all())
+    def test_real_probe_snippet_is_a_contiguous_row_major_shape(self):
+        # First runs of the real fal-ai/sam-3/video-rle response (720x1280 clip, 2026-11-01).
+        numbers=[int(x) for x in '61701 28 62419 34 63137 38 63857 38 64574 43 65291 48 66010 50 66729 52 67448 56 68167 58 68886 60 69605 62 70324 63 71043 65 71761 67 72481 68 73200 69 73919 70'.split()]
+        mask=rle_masks.decode_runs(numbers,1280,720)
+        rows=[np.flatnonzero(mask[r]) for r in range(85,85+17)]
+        self.assertTrue(all(len(r) for r in rows))
+        for a,b in zip(rows[:-1],rows[1:]):
+            self.assertLessEqual(max(a.min(),b.min()),min(a.max(),b.max()),'neighbouring rows must overlap')
+    def test_alternating_counts_string_is_accepted(self):
+        m=self.blob();counts=mask_counts(m)
+        self.assertTrue((rle_masks.decode_one(' '.join(map(str,counts)),*m.shape)==m).all())
+    def test_blank_string_is_an_empty_mask(self):
+        self.assertFalse(rle_masks.decode_one('   ',5,5).any())
+    def test_runs_outside_the_frame_are_rejected(self):
+        with self.assertRaises(ValueError):rle_masks.decode_one('10 5 9999 5',10,10)
+        with self.assertRaises(ValueError):rle_masks.decode_one('5 3 2 4',10,10)
+    def test_two_objects_are_grouped_by_frame_index(self):
+        a=np.zeros((10,10),dtype=bool);a[:3,:3]=True;b=np.zeros((10,10),dtype=bool);b[6:,6:]=True
+        result={'rle':[pair_string(a),pair_string(b),pair_string(a)],'metadata':[{'index':0},{'index':0},{'index':1}]}
+        got=rle_masks.masks_from_response(result,2,10,10)
+        self.assertTrue((got[0]==(a|b)).all());self.assertTrue((got[1]==a).all())
+    def test_ambiguous_extra_entries_still_refused(self):
+        s=pair_string(self.blob())
+        with self.assertRaisesRegex(ValueError,'refusing to guess'):rle_masks.masks_from_response({'rle':[s,s,s],'metadata':[{'index':0},{'index':1},{'index':2}]},2,40,16)
+    def test_box_overlap_check(self):
+        import fal_check
+        m=np.zeros((100,50),dtype=bool);m[20:60,10:30]=True
+        good=[[0.4,0.4,0.4,0.4]]  # cx,cy,w,h of the same region
+        self.assertGreater(fal_check.box_overlap([m],good)[0],0.95)
+        self.assertLess(fal_check.box_overlap([m],[[0.9,0.9,0.1,0.1]])[0],0.1)
+
 class FakeHandler:
     request_id='req-123'
     def __init__(self,result,folder=None):self.result=result;self.folder=folder
