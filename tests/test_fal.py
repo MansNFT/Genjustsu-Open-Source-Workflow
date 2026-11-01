@@ -181,7 +181,7 @@ class StageTests(unittest.TestCase):
             with patch('fal_provider.upload',return_value='https://fal.media/a.wav'),patch('fal_provider.run',return_value=(result,'req-9')) as run,patch('fal_provider.download',fake_download):
                 aw.separate(d/'src.wav',d,lambda s:None)
             args=run.call_args[0]
-            self.assertEqual(args[0],'fal-ai/demucs');self.assertEqual(args[1]['model'],'htdemucs');self.assertEqual(args[1]['output_format'],'wav')
+            self.assertEqual(args[0],'fal-ai/demucs');self.assertEqual(args[1]['model'],'htdemucs');self.assertEqual(args[1]['output_format'],'wav');self.assertEqual(args[1]['stems'],['vocals','drums','bass','other'])
             manifest=json.loads((d/'audio-manifest.json').read_text())
             self.assertEqual(manifest['request_id'],'req-9');self.assertTrue((d/'music.wav').exists())
 

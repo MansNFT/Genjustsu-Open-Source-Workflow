@@ -4,7 +4,7 @@ All neural inference in the default path is hosted. No weight downloads are incl
 
 | Stage | Provider/model | Configuration |
 |---|---|---|
-| Vocal separation | fal.ai [`fal-ai/demucs`](https://fal.ai/models/fal-ai/demucs) | `model=htdemucs` (fal defaults to `htdemucs_6s`, so it is pinned), `output_format=wav`; stems vocals, drums, bass, other |
+| Vocal separation | fal.ai [`fal-ai/demucs`](https://fal.ai/models/fal-ai/demucs) | `model=htdemucs` and `stems=[vocals, drums, bass, other]` (fal defaults to `htdemucs_6s` and all six stems, and rejects guitar/piano for `htdemucs`), `output_format=wav` |
 | Depth, default | fal.ai [`fal-ai/depth-anything-video`](https://fal.ai/models/fal-ai/depth-anything-video) | Video Depth Anything; `model=VDA-Large`, `colormap=inferno` (override with `FAL_DEPTH_MODEL` / `FAL_DEPTH_COLORMAP`), `resolution=auto`; the returned colors are preserved exactly |
 | Depth alternative | [Video-Depth-Anything Space](https://huggingface.co/spaces/depth-anything/Video-Depth-Anything) | public GPU quota/availability; optional HF_TOKEN |
 | Segmentation | fal.ai [`fal-ai/sam-3/video-rle`](https://fal.ai/models/fal-ai/sam-3/video-rle) | `video_url`, `prompt`, `apply_mask=false`, `detection_threshold=0.5`; per-frame RLE masks are decoded locally (`rle_masks.py`) into `mask_NNNNN.png` |

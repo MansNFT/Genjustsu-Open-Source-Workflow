@@ -28,8 +28,8 @@ def separate(src,folder,status=print):
     from fal_provider import upload,run,download,file_url
     status('Audio · uploading to fal');url=upload(folder/'original-audio.wav')
     status('Audio · separating vocals and original music')
-    # fal's default model is htdemucs_6s; pin the 4-stem htdemucs used by this workflow.
-    j,request_id=run('fal-ai/demucs',{'audio_url':url,'model':'htdemucs','output_format':'wav'},folder,'audio',status)
+    # fal defaults to htdemucs_6s and to all six stems; pin the 4-stem htdemucs AND its four stems (guitar/piano are rejected for htdemucs).
+    j,request_id=run('fal-ai/demucs',{'audio_url':url,'model':'htdemucs','stems':['vocals','drums','bass','other'],'output_format':'wav'},folder,'audio',status)
     stems={}
     for name in ['vocals','drums','bass','other']:
         if not j.get(name):continue
