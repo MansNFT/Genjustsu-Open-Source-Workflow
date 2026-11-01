@@ -18,10 +18,10 @@ For the complete setup, install Python 3.12 if absent and run `bash setup-face-m
 
 ## 2. Configure the user's accounts
 
-Create `.env` from `.env.example` only if absent. Open it in the user's editor and ask them to enter their own Enhancor and Replicate keys there. Never request keys in chat, print values, copy credentials from another project, or commit `.env`.
+Create `.env` from `.env.example` only if absent. Open it in the user's editor and ask them to enter their own Enhancor and fal.ai keys there. Never request keys in chat, print values, copy credentials from another project, or commit `.env`.
 
 - Enhancor: https://app.enhancor.ai/api-dashboard
-- Replicate: https://replicate.com/account/api-tokens
+- fal.ai (`FAL_KEY`): https://fal.ai/dashboard/keys
 - Hugging Face token is optional for the alternative depth provider.
 - Default media host is Tmpfiles (no key). Catbox is optional; see MEDIA-HOSTING.md. Explain that the selected media host receives public-URL uploads when they generate.
 

@@ -4,7 +4,7 @@ from pathlib import Path
 from config import ROOT,load_env
 load_env()
 p=argparse.ArgumentParser();sub=p.add_subparsers(dest='command',required=True)
-c=sub.add_parser('prepare');c.add_argument('video');c.add_argument('--subject',default='person');c.add_argument('--provider',default='replicate',choices=['replicate','replicate-chenxwh','huggingface'])
+c=sub.add_parser('prepare');c.add_argument('video');c.add_argument('--subject',default='person');c.add_argument('--provider',default='fal',choices=['fal','huggingface'])
 for command in ['status','repair-rgb','resume','hd','review','submit']:
  c=sub.add_parser(command);c.add_argument('job')
  if command=='review':c.add_argument('--approve',action='store_true');c.add_argument('--fingerprint',required=True);c.add_argument('--note',required=True)

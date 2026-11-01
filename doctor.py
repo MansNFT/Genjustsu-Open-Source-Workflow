@@ -6,7 +6,7 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--require-keys',action='store_true');parser.add_argument('--mesh',action='store_true');args=parser.parse_args()
     failed=sys.version_info<(3,12)
     print('Python:',sys.version.split()[0], '(3.12+ required)')
-    for name in ['av','numpy','PIL','requests','fastapi','uvicorn','multipart','gradio_client','scipy']:
+    for name in ['av','numpy','PIL','requests','fastapi','uvicorn','multipart','gradio_client','scipy','fal_client']:
         try:importlib.import_module(name);print(name+': OK')
         except Exception as exc:print(name+': FAILED ('+type(exc).__name__+')');failed=True
     binary=shutil.which('rubberband');print('rubberband:', 'OK' if binary else 'MISSING — see docs/SETUP-AGENT.md');failed=failed or not binary
@@ -18,7 +18,7 @@ def main():
         print('Face mesh worker: '+('OK' if ready else 'MISSING — run bash setup-face-mesh.sh'))
         failed=failed or not ready
     missing=[]
-    for key in ['ENHANCOR_API_KEY','REPLICATE_API_TOKEN']:
+    for key in ['ENHANCOR_API_KEY','FAL_KEY']:
         value=setting(key).strip()
         valid=bool(value) and not any(x in value.lower() for x in ['your_key','your_api','replace_me','placeholder'])
         print(key+': '+('configured (not verified remotely)' if valid else 'MISSING'))

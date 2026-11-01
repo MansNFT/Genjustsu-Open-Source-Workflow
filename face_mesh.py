@@ -19,7 +19,7 @@ def run(src,folder,status=print):
     status('Face mesh ready · review tracking and pitched audio')
 
 
-def run_depth(src,folder,prompt='person',provider='replicate',status=print):
+def run_depth(src,folder,prompt='person',provider='fal',status=print):
     from pipeline import run as run_advanced
     from audio_workflow import prepare_seedance_video
     folder=Path(folder)

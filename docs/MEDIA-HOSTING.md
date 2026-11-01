@@ -1,6 +1,6 @@
 # Media hosting
 
-Enhancor must fetch direct HTTPS media. Replicate preprocessing uses Replicate's `/v1/files` upload API with your token. Enhancor references use the selected public host below. URLs and request bodies stay in each local run; do not share run folders with the clean project.
+Enhancor must fetch direct HTTPS media. fal.ai preprocessing uploads media to fal storage with your `FAL_KEY` (`fal_client.upload_file`). Enhancor references use the selected public host below. URLs and request bodies stay in each local run; do not share run folders with the clean project.
 
 ## Tmpfiles (default)
 

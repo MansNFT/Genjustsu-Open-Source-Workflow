@@ -1,23 +1,36 @@
 from pathlib import Path
-import os,json,time,zipfile,io
+import json
+import av
 import requests
 
-def segment_raw(video,folder,prompt='person'):
-    folder=Path(folder);h={'Authorization':'Bearer '+os.environ['REPLICATE_API_TOKEN']}
-    with open(video,'rb') as f:r=requests.post('https://api.replicate.com/v1/files',headers=h,files={'content':f},timeout=120)
-    r.raise_for_status();url=r.json()['urls']['get']
-    payload={'version':'408f82fc20c300aac5d61d2e34ddb34cd0181e810e9f609d250aed14d5f81269','input':{'video':url,'prompt':prompt,'mask_only':True,'return_zip':True}}
-    r=requests.post('https://api.replicate.com/v1/predictions',headers=h,json=payload,timeout=60);r.raise_for_status();j=r.json();(folder/'sam-raw-request.json').write_text(json.dumps(j,indent=2));print('SAM raw-mask job:',j['id'],flush=True)
-    for _ in range(180):
-        if j['status'] in ['succeeded','failed','canceled']:break
-        time.sleep(5);r=requests.get(j['urls']['get'],headers=h,timeout=30);r.raise_for_status();j=r.json()
-    if j['status']!='succeeded':raise RuntimeError(str(j.get('error') or j['status']))
-    r=requests.get(j['output'],timeout=180);r.raise_for_status();(folder/'sam-masks.zip').write_bytes(r.content)
+SAM_ENDPOINT='fal-ai/sam-3/video-rle'
+
+def video_info(path):
+    """Frame count and size, counted by decoding so it matches what composite() sees."""
+    with av.open(str(path)) as c:
+        count=0;h=w=0
+        for f in c.decode(video=0):
+            if not count:h,w=f.height,f.width
+            count+=1
+    if not count:raise ValueError('Video has no frames.')
+    return count,h,w
+
+def segment_raw(video,folder,prompt='person',status=print):
+    """Segment ``prompt`` with SAM 3 on fal and write one ``mask_NNNNN.png`` per frame (white = subject)."""
+    import numpy as np
+    from PIL import Image
+    from fal_provider import upload,run
+    from rle_masks import masks_from_response
+    folder=Path(folder);folder.mkdir(parents=True,exist_ok=True)
+    frames,h,w=video_info(video)
+    status('SAM 3 · uploading video to fal');url=upload(video)
+    # apply_mask=False: only the per-frame RLE masks are needed, not a rendered overlay.
+    result,_=run(SAM_ENDPOINT,{'video_url':url,'prompt':prompt,'apply_mask':False,'detection_threshold':0.5},folder,'sam-raw',status)
+    def fetch(u):
+        r=requests.get(u,timeout=180);r.raise_for_status();return r.json()
+    masks=masks_from_response(result,frames,h,w,fetch)
     out=folder/'raw-masks';out.mkdir(exist_ok=True)
-    with zipfile.ZipFile(io.BytesIO(r.content)) as z:
-        for name in z.namelist():
-            base=Path(name).name
-            if base.startswith('mask_') and base.endswith('.png'):(out/base).write_bytes(z.read(name))
+    for i,m in enumerate(masks):Image.fromarray(m.astype(np.uint8)*255).save(out/f'mask_{i:05d}.png')
     return out
 
 def clean_border_fragments(folder):

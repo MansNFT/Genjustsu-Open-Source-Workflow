@@ -10,9 +10,9 @@ app=FastAPI();jobs={}
 @app.get('/')
 def index():return FileResponse(ROOT/'static/index.html')
 @app.post('/jobs')
-def create(video:UploadFile=File(...),prompt:str=Form('person'),provider:str=Form('replicate'),mode:str=Form('depth')):
+def create(video:UploadFile=File(...),prompt:str=Form('person'),provider:str=Form('fal'),mode:str=Form('depth')):
     if mode not in ['depth','face_mesh','depth_mesh']:raise HTTPException(400,'Unknown workflow mode')
-    if provider not in ['huggingface','replicate','replicate-chenxwh']:raise HTTPException(400,'Unknown provider')
+    if provider not in ['huggingface','fal']:raise HTTPException(400,'Unknown provider')
     ident=uuid.uuid4().hex;folder=RUNS/ident;folder.mkdir();src=folder/'upload.mp4'
     with src.open('wb') as out:shutil.copyfileobj(video.file,out)
     jobs[ident]={'state':'running','status':'Starting','id':ident}

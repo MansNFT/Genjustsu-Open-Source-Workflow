@@ -42,7 +42,7 @@ The launcher starts a callback-only Quick Tunnel when no custom webhook is confi
    - Ubuntu/Debian or WSL: `sudo apt install rubberband-cli python3-venv`
    - Install [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) too, unless you already have a public HTTPS webhook receiver. On launch it creates a temporary callback-only tunnel; the UI and media stay on localhost.
 2. In this folder, run `bash setup.sh`. This creates an isolated `.venv`, installs `requirements.txt`, creates a blank `.env`, and checks dependencies. To enable all three modes, install Python 3.12 and run `bash setup-face-mesh.sh`, then `.venv/bin/python doctor.py --mesh`. On macOS, install the worker interpreter with `brew install python@3.12` if needed.
-3. Fill `.env` with **your own** `ENHANCOR_API_KEY` and `REPLICATE_API_TOKEN`. Get them from [Enhancor](https://app.enhancor.ai/api-dashboard) and [Replicate](https://replicate.com/account/api-tokens). Fund/enable the relevant API accounts. `HF_TOKEN` is optional for the Hugging Face depth alternative.
+3. Fill `.env` with **your own** `ENHANCOR_API_KEY` and `FAL_KEY`. Get them from [Enhancor](https://app.enhancor.ai/api-dashboard) and [fal.ai](https://fal.ai/dashboard/keys). Fund/enable the relevant API accounts. `HF_TOKEN` is optional for the Hugging Face depth alternative.
 4. Run `./start.command` (or `bash start.command`). Open **http://127.0.0.1:8770**. Use `PORT=8771 bash start.command` if the port is occupied.
    - Once running, check `.venv/bin/python doctor.py --require-keys`. Enhancor requires a webhook URL: `launch.py` supplies one through cloudflared, or you can set `ENHANCOR_WEBHOOK_URL` yourself. Keep the app/tunnel running.
 5. Upload your own MP4/MOV, prepare it, inspect the entire mask and prepared video, approve that exact mask, provide your own character references, review the prompt, and create a draft.
@@ -52,9 +52,9 @@ No local model weights or GPU are needed for the default hosted setup. Python pa
 
 ## What happens
 
-1. Save the source unchanged; extract audio and separate vocals/music with Demucs on Replicate.
+1. Save the source unchanged; extract audio and separate vocals/music with Demucs on fal.ai.
 2. Pitch isolated vocals **+3 semitones**, maintaining duration with Rubber Band.
-3. Normalize the working video to 24 fps, up to 960 pixels; obtain colored depth with `lucataco/depth-anything-video`. Preserve returned colors.
+3. Normalize the working video to 24 fps, up to 960 pixels; obtain colored depth with `fal-ai/depth-anything-video` (default `inferno` colormap). Preserve returned colors.
 4. Use SAM 3 raw PNG masks on depth. Check alignment, coverage and background spill. An agent can retry segmentation on the original RGB if depth loses detail.
 5. Composite the depth subject over the original background. Mandatory full-clip visual mask review gates every generation. Approval is bound to hashes of the current artifacts.
 6. Embed the pitched vocals into the composite MP4. Send this video, **no standalone audio**, with character references.
@@ -150,10 +150,10 @@ For setup with all three preparation modes, also install Python 3.12 and run `ba
 | --- | --- |
 | Local app | Python 3.12+, FastAPI, Uvicorn; HTML, CSS and vanilla JavaScript UI |
 | Video/audio processing | PyAV, NumPy, Pillow, OpenCV and SciPy; local encoding, compositing and audio restoration |
-| Vocal isolation | Hosted Demucs / htdemucs through Replicate |
+| Vocal isolation | Hosted Demucs / htdemucs through fal.ai (`fal-ai/demucs`) |
 | Pitch | Rubber Band CLI; isolated vocals +3 semitones without changing duration |
-| Colored depth | Replicate `lucataco/depth-anything-video`; optional Hugging Face Video Depth Anything or `chenxwh/depth-any-video` |
-| Segmentation | Replicate `lucataco/sam3-video`; raw per-frame masks and mandatory visual review |
+| Colored depth | fal.ai `fal-ai/depth-anything-video`; optional Hugging Face Video Depth Anything |
+| Segmentation | fal.ai `fal-ai/sam-3/video-rle`; per-frame RLE masks decoded to raw PNG masks, with mandatory visual review |
 | Face mesh | Local Google MediaPipe Face Landmarker; saved landmarks and overlay, isolated Python 3.12 worker environment |
 | Generation | Enhancor Seedance; Edit for image references, Omni for video references; draft first, approved 1080p upgrade |
 | Media hosting | Tmpfiles primary; configurable Catbox fallback; direct-link checks before generation |

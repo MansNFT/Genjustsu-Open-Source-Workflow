@@ -1,7 +1,7 @@
 """Isolate vocals before generation and replace generated sound with entire original source audio."""
 from pathlib import Path
-import os,json,time
-import av,numpy as np,requests
+import json
+import av,numpy as np
 RATE=44100
 
 def read_audio(path):
@@ -25,27 +25,21 @@ def separate(src,folder,status=print):
     folder=Path(folder)
     if (folder/'audio-manifest.json').exists():return
     status('Audio · extracting original track');original=read_audio(src);write_audio(folder/'original-audio.wav',original)
-    token=os.getenv('REPLICATE_API_TOKEN')
-    if not token:raise ValueError('REPLICATE_API_TOKEN is required for audio separation.')
-    headers={'Authorization':'Bearer '+token}
-    with (folder/'original-audio.wav').open('rb') as f:r=requests.post('https://api.replicate.com/v1/files',headers=headers,files={'content':f},timeout=120)
-    r.raise_for_status();url=r.json()['urls']['get'];status('Audio · separating vocals and original music')
-    r=requests.post('https://api.replicate.com/v1/predictions',headers=headers,json={'version':'25a173108cff36ef9f80f854c162d01df9e6528be175794b81158fa03836d953','input':{'audio':url,'model_name':'htdemucs','output_format':'wav'}},timeout=60);r.raise_for_status();j=r.json()
-    (folder/'audio-prediction.json').write_text(json.dumps(j,indent=2))
-    for _ in range(180):
-        if j['status'] in ['succeeded','failed','canceled']:break
-        time.sleep(5);r=requests.get(j['urls']['get'],headers=headers,timeout=30);r.raise_for_status();j=r.json()
-    if j['status']!='succeeded':raise RuntimeError('Audio separation: '+str(j.get('error') or j['status']))
+    from fal_provider import upload,run,download,file_url
+    status('Audio · uploading to fal');url=upload(folder/'original-audio.wav')
+    status('Audio · separating vocals and original music')
+    # fal's default model is htdemucs_6s; pin the 4-stem htdemucs used by this workflow.
+    j,request_id=run('fal-ai/demucs',{'audio_url':url,'model':'htdemucs','output_format':'wav'},folder,'audio',status)
     stems={}
-    for name,url in j['output'].items():
-        if not url:continue
-        r=requests.get(url,timeout=120);r.raise_for_status();p=folder/(name+'.wav');p.write_bytes(r.content);stems[name]=read_audio(p)
+    for name in ['vocals','drums','bass','other']:
+        if not j.get(name):continue
+        p=folder/(name+'.wav');download(file_url(j[name]),p,timeout=120);stems[name]=read_audio(p)
     if 'vocals' not in stems or not any(n!='vocals' for n in stems):raise ValueError('Separation returned incomplete stems.')
     music=np.zeros_like(original)
     for name,a in stems.items():
         if name!='vocals':n=min(music.shape[1],a.shape[1]);music[:,:n]+=a[:,:n]
     write_audio(folder/'music.wav',np.clip(music,-1,1))
-    (folder/'audio-manifest.json').write_text(json.dumps({'prediction_id':j['id'],'seedance_video':'composite-silent.mp4','seedance_audio':'vocals.wav','final_audio':'upload.mp4 (entire original audio track)','discard_seedance_audio':True,'separation':'Demucs htdemucs; residual music or vocal bleed is possible'},indent=2))
+    (folder/'audio-manifest.json').write_text(json.dumps({'provider':'fal','request_id':request_id,'seedance_video':'composite-silent.mp4','seedance_audio':'vocals.wav','final_audio':'upload.mp4 (entire original audio track)','discard_seedance_audio':True,'separation':'Demucs htdemucs; residual music or vocal bleed is possible'},indent=2))
 
 def finish_preview(generated,folder):
     folder=Path(folder);target=folder/'final-preview.mp4'

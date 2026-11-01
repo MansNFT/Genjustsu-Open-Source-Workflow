@@ -1,7 +1,7 @@
 from pathlib import Path
 from fractions import Fraction
-import os, shutil, json, time
-import av, numpy as np, requests
+import os, shutil, json
+import av, numpy as np
 from PIL import Image
 from gradio_client import Client, handle_file
 
@@ -9,7 +9,6 @@ from config import load_env
 load_env()
 
 DEPTH='depth-anything/Video-Depth-Anything'
-SAM='linoyts/SAM3-Video'
 
 def frames(path):
     with av.open(str(path)) as c:
@@ -52,23 +51,20 @@ def depth_hf(src,dst):
     result=c.predict({'video':handle_file(str(src))},max_len=-1,target_fps=24,max_res=960,grayscale=False,api_name='/infer_video_depth')
     shutil.copy(file_path(result[1]),dst)
 
-def depth_replicate(src,dst,model_name="lucataco/depth-anything-video"):
-    token=os.getenv('REPLICATE_API_TOKEN')
-    if not token:raise ValueError('Replicate fallback requires REPLICATE_API_TOKEN in the server environment.')
-    # Resolve live model schema instead of assuming an input field.
-    headers={'Authorization':f'Bearer {token}'}
-    r=requests.get('https://api.replicate.com/v1/models/'+model_name,headers=headers,timeout=30);r.raise_for_status();model=r.json();v=model['latest_version'];props=v['openapi_schema']['components']['schemas']['Input']['properties']
-    key=next((k for k in props if 'video' in k and props[k].get('format')=='uri'),None)
-    if not key:raise ValueError('Unable to identify Replicate video input in schema.')
-    with open(src,'rb') as f:r=requests.post('https://api.replicate.com/v1/files',headers=headers,files={'content':f},timeout=120)
-    r.raise_for_status();url=r.json()['urls']['get']
-    r=requests.post('https://api.replicate.com/v1/predictions',headers=headers,json={'version':v['id'],'input':{key:url}},timeout=60);r.raise_for_status();j=r.json()
-    for _ in range(180):
-        if j['status'] in ['succeeded','failed','canceled']:break
-        time.sleep(5);r=requests.get(j['urls']['get'],headers=headers,timeout=30);r.raise_for_status();j=r.json()
-    if j['status']!='succeeded':raise RuntimeError(str(j.get('error') or j['status']))
-    output=j['output'];url=output if isinstance(output,str) else output[0] if isinstance(output,list) else next(v for k,v in output.items() if 'depth' in k)
-    r=requests.get(url,timeout=120);r.raise_for_status();Path(dst).write_bytes(r.content)
+DEPTH_ENDPOINT='fal-ai/depth-anything-video'
+
+def depth_fal(src,dst,status=print):
+    """Colored Video Depth Anything on fal. The colormap is baked into the returned video
+    and preserved exactly; override with FAL_DEPTH_COLORMAP (grayscale, turbo, inferno, magma, viridis)."""
+    from config import setting
+    from fal_provider import upload,run,download,file_url
+    colormap=setting('FAL_DEPTH_COLORMAP','inferno') or 'inferno'
+    if colormap not in ['grayscale','turbo','inferno','magma','viridis']:raise ValueError('FAL_DEPTH_COLORMAP must be grayscale, turbo, inferno, magma or viridis.')
+    model=setting('FAL_DEPTH_MODEL','VDA-Large') or 'VDA-Large'
+    if model not in ['VDA-Small','VDA-Base','VDA-Large']:raise ValueError('FAL_DEPTH_MODEL must be VDA-Small, VDA-Base or VDA-Large.')
+    status('Depth · uploading video to fal');url=upload(src)
+    result,_=run(DEPTH_ENDPOINT,{'video_url':url,'model':model,'colormap':colormap,'resolution':'auto'},Path(dst).parent,'depth',status)
+    download(file_url(result['video']),dst,timeout=120)
 
 def grayscale(src,dst,inferno=False):
     out=s=None
@@ -125,22 +121,23 @@ def composite(original,depth,seg,directory,audio_source=None):
                 if packet.dts is not None:packet.stream=astream;output.mux(packet)
     return counts[0]
 
-def run(src,directory,prompt='person',provider='replicate',status=print):
+def run(src,directory,prompt='person',provider='fal',status=print):
+    if str(provider).startswith('replicate'):provider='fal'  # legacy saved choice; Replicate is no longer used
     directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
     from audio_workflow import separate
     separate(src,directory,status)
     status('Preparing video · 24 fps');meta=normalize(src,directory/'original.mp4')
     status('Video Depth Anything · generating depth')
     if provider=='huggingface':depth_hf(directory/'original.mp4',directory/'depth-raw.mp4')
-    else:depth_replicate(directory/'original.mp4',directory/'depth-raw.mp4', 'chenxwh/depth-any-video' if provider=='replicate-chenxwh' else 'lucataco/depth-anything-video')
+    else:depth_fal(directory/'original.mp4',directory/'depth-raw.mp4',status)
     shutil.copyfile(directory/'depth-raw.mp4',directory/'depth.mp4')
     status('SAM 3 · segmenting the depth subject')
     from raw_masks import segment_raw,clean_border_fragments
-    raw_dir=clean_border_fragments(segment_raw(directory/'depth.mp4',directory,prompt))
+    raw_dir=clean_border_fragments(segment_raw(directory/'depth.mp4',directory,prompt,status))
     status('Compositing · depth subject over original background')
     composite(directory/'original.mp4',directory/'depth.mp4',raw_dir,directory,src)
     from audio_workflow import prepare_seedance_video
     status('Embedding isolated vocals · +3 semitones')
     prepare_seedance_video(directory)
-    meta.update(prompt=prompt,depth_provider=provider,sam_space=SAM,mask_method='SAM 3 raw PNG masks')
+    meta.update(prompt=prompt,depth_provider=provider,sam_model='fal-ai/sam-3/video-rle',mask_method='SAM 3 raw PNG masks')
     (directory/'manifest.json').write_text(json.dumps(meta,indent=2));status('Complete')

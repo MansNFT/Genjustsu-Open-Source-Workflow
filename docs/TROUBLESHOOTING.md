@@ -10,6 +10,6 @@
 - Frame count/index mismatch: composition fails deliberately. Inspect output fps/frame IDs; align the provider output to the same source rather than forcing a shifted mask through.
 - Original audio duration mismatch: the exporter permits a short final-frame hold for a 0.25–0.5 second provider rounding gap and records `duration-adjustment.json`. Larger differences are rejected. It never stretches or loops source audio. If the source codec cannot be remuxed into MP4, stop and choose an explicit compatible export plan.
 - No source audio: currently unsupported; provide a source with an audio track or adapt the workflow explicitly.
-- Restart: Seedance and HD result retrieval resume from saved responses. Earlier preparation failures require inspecting saved Replicate predictions. The local UI is not a durable distributed worker queue.
+- Restart: Seedance and HD result retrieval resume from saved responses. Earlier preparation failures require inspecting the saved fal request IDs (`*-request.json` in the run folder); retrieve a finished request with `fal_provider.collect()` instead of resubmitting. If SAM masks fail to decode, run `fal_check.py` on a very short clip and inspect the saved response. The local UI is not a durable distributed worker queue.
 - UI fonts: Google Fonts is used, with system fallbacks if offline. Companion artwork is bundled under `static/companions`.
 - Lost pending status: use `workflow.py resume JOB` (or `--hd`), not another submit. Completed outputs remain in `runs`.
